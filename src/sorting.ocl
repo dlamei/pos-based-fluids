@@ -1,0 +1,93 @@
+
+typedef struct Particle {
+    float pos_x;
+    float pos_y;
+    float vel_x;
+    float vel_y;
+} Particle;
+
+int get_cell_index(Particle *p, const uint n_cells) {
+    if (p->pos_x < 0 || p->pos_x >= 1) return -1;
+    if (p->pos_y < 0 || p->pos_y >= 1) return -1;
+
+    int x = p->pos_x * n_cells;
+    int y = p->pos_y * n_cells;
+    return x + y * n_cells;
+}
+
+kernel void sort_particles(
+    global uint *count_per_cell,
+    global int *ids,
+    global Particle *particles,
+    const uint n_per_cell,
+    const uint n_cells
+    )
+{
+    int id = get_global_id(0);
+
+    Particle *p = &particles[id];
+
+
+    int cell_indx = get_cell_index(p, n_cells);
+    if (cell_indx == -1) return;
+
+    int count = atomic_inc(&count_per_cell[cell_indx]);
+
+    if (count < n_per_cell) {
+        int id_indx = cell_indx * n_per_cell + count;
+        ids[id_indx] = id;
+    }
+}
+
+void collide(Particle *p, Particle *other, const float radius) {
+    float dist_x = p->pos_x - other->pos_x;
+    float dist_y = p->pos_y - other->pos_y;
+    float dist = dist_x * dist_x + dist_y * dist_y;
+    if (dist <= radius * radius) {
+        p->vel_x = 1;
+    }
+}
+
+int get_neighbor_cell(const int indx, int x_off, int y_off, const uint n_cells) {
+    int x = indx % n_cells;
+    int y = indx / n_cells;
+
+    x += x_off;
+    y += y_off;
+
+    if (x >= 0 && x < n_cells && y >= 0 && y < n_cells) {
+        return x + y * n_cells;
+    } else {
+        return -1;
+    }
+}
+
+kernel void collide_particles(
+    global uint *count_per_cell,
+    global int *ids,
+    global Particle *particles,
+    const uint n_per_cell,
+    const uint n_cells,
+    const float radius
+    )
+{
+    int id = get_global_id(0);
+    Particle *p = &particles[id];
+    float grid_size = 1.f / n_cells;
+
+    Particle p_copy = *p;
+    for (int x = 0; x < 3; x++) {
+        for (int y = 0; y < 3; y++) {
+            int cell_indx = get_neighbor_cell(id, x, y, n_cells);
+            printf("self: %d, cell: %d\n", id, cell_indx);
+            if (cell_indx == -1) continue;
+
+            for (int i = 0; i < count_per_cell[cell_indx]; i++) {
+                int other_id = ids[cell_indx * n_per_cell + i];
+                if (other_id == id) continue;
+                Particle *other = &particles[other_id];
+                collide(p, other, radius);
+            }
+        }
+    }
+}

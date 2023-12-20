@@ -11,8 +11,7 @@ struct VertexInput {
 
 struct InstanceInput {
     @location(2) position: vec2<f32>,
-    @location(3) scale: f32,
-    @location(4) color: u32,
+    @location(3) velocity: vec2<f32>,
 }
 
 struct VertexOutput {
@@ -27,15 +26,11 @@ fn vs_main(
     instance: InstanceInput,
 ) -> VertexOutput {
     var out: VertexOutput;
-    let pos = instance.position + model.position * instance.scale;
-
-    let r = (instance.color >> 16u);
-    let g = (instance.color >> 8u ) & 0xffu;
-    let b = (instance.color       ) & 0xffu;
+    let pos = instance.position + model.position * 0.5;
 
     out.local_pos = model.position;
     out.position = camera.transform * vec4<f32>(pos, 0.0, 1.0);
-    out.color = vec3(f32(r), f32(g), f32(b)) / 255.0;
+    out.color = vec3<f32>(instance.velocity, 1.0);
 
     return out;
 }
@@ -44,6 +39,7 @@ fn vs_main(
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let center = in.local_pos;
     let dist = center.x * center.x + center.y * center.y;
-    let alpha = smoothstep(0.0, 0.01, 1.0 - dist);
-    return vec4(in.color, alpha);
+    let outer_alpha = smoothstep(0.0, 0.01, 1.0 - dist);
+    let inner_alpha = smoothstep(0.01, 0.0, 0.90 - dist);
+    return vec4(in.color, outer_alpha * inner_alpha);
 }

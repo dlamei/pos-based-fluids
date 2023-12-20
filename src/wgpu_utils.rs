@@ -245,6 +245,11 @@ impl<'a, S: BufferState> BufferBuilder<'a, S> {
         self
     }
 
+    pub fn usage(mut self, usage: wgpu::BufferUsages) -> Self {
+        self.usage |= usage;
+        self
+    }
+
     pub fn data<T: bytemuck::Pod>(self, data: &[T]) -> BufferBuilder<'a, InitBuffer> {
         BufferBuilder {
             usage: self.usage,
